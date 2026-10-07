@@ -86,7 +86,7 @@ class Machine:
 
 
 
-    def tick(self, delta_sec=1, failure_rate=0.0):
+    def tick(self, delta_sec=1, failure_rate=0.1):
 
         for s in self.slots:
 
@@ -104,7 +104,7 @@ class Machine:
 
 class FactorySim:
 
-    def __init__(self, num_machines=25, slots_per_machine=8, raw_stock=5, failure_rate=0.0):
+    def __init__(self, num_machines=25, slots_per_machine=8, raw_stock=5, failure_rate=0.1):
 
         self.machines = [Machine(f"M{i+1}", slots_per_machine) for i in range(num_machines)]
 
@@ -891,7 +891,7 @@ def run_streamlit_app():
 
     if "sim_engine" not in st.session_state:
         st.session_state.sim_engine = FactorySim(
-            num_machines=25, slots_per_machine=8, raw_stock=5, failure_rate=0.0
+            num_machines=25, slots_per_machine=8, raw_stock=5, failure_rate=0.1
         )
         st.session_state.is_running = True
 
@@ -905,7 +905,7 @@ def run_streamlit_app():
         st.session_state.is_running = not st.session_state.is_running
     if control_columns[2].button("重設模擬", use_container_width=True):
         st.session_state.sim_engine = FactorySim(
-            num_machines=25, slots_per_machine=8, raw_stock=5, failure_rate=0.0
+            num_machines=25, slots_per_machine=8, raw_stock=5, failure_rate=0.1
         )
         st.session_state.is_running = True
     control_columns[3].caption("約每 0.2 秒更新一次")
