@@ -1,10 +1,13 @@
-import tkinter as tk
-
-from tkinter import ttk
-
 import random
 
-import time
+import streamlit as st
+
+try:
+    import tkinter as tk
+    from tkinter import ttk
+except ImportError:
+    tk = None
+    ttk = None
 
 
 
@@ -826,12 +829,97 @@ class AppGUI:
 
 
 
+def render_dashboard(sim):
+    hours, remainder = divmod(sim.sim_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    metric_columns = st.columns(5)
+    metric_columns[0].metric("模擬時間", f"{hours:02d}:{minutes:02d}:{seconds:02d}")
+    metric_columns[1].metric("UPH", f"{sim.get_uph():.2f}")
+    metric_columns[2].metric("Raw 可用", sim.raw_stock)
+    metric_columns[3].metric("GOOD", sim.good_sink)
+    metric_columns[4].metric("SCRAP", sim.scrap_sink)
+
+    transit_count = len(sim.raw_in_transit)
+    busy = f" ({sim.robot_busy_timer}s)" if sim.robot_busy_timer > 0 else ""
+    hand = "空" if sim.robot_hand is None else (
+        f"{sim.robot_hand['type']} · a={sim.robot_hand['attempt']} · {sim.robot_hand['from_m']}"
+    )
+    st.info(
+        f"Robot  {sim.robot_action}{busy}　|　手上物品 {hand}　|　"
+        f"天車/輸送帶運送中 {transit_count}"
+    )
+
+    machines = []
+    for machine in sim.machines:
+        counts = {
+            state: sum(slot.state == state for slot in machine.slots)
+            for state in ("PROCESSING", "GOOD", "FAILED", "EMPTY")
+        }
+        machines.append({
+            "機台": machine.name,
+            "執行中": counts["PROCESSING"],
+            "完成": counts["GOOD"],
+            "異常": counts["FAILED"],
+            "空位": counts["EMPTY"],
+        })
+
+    st.subheader("機台總覽")
+    st.dataframe(machines, hide_index=True, use_container_width=True)
+
+    machine_names = [machine.name for machine in sim.machines]
+    selected_name = st.selectbox("查看機台 Slot", machine_names, key="selected_machine")
+    selected_machine = next(machine for machine in sim.machines if machine.name == selected_name)
+    slot_columns = st.columns(4)
+    for index, slot in enumerate(selected_machine.slots):
+        if slot.state == "PROCESSING":
+            label = f"剩餘 {max(0, slot.timer) // 60} 分鐘"
+        elif slot.state in ("GOOD", "FAILED"):
+            label = f"重試 {slot.attempt} 次"
+        else:
+            label = "等待投入"
+        with slot_columns[index % len(slot_columns)]:
+            st.metric(f"S{slot.slot_id} · {slot.state}", label)
+
+    st.subheader("動作紀錄")
+    st.text("\n".join(reversed(sim.logs)) if sim.logs else "尚無紀錄")
+
+
+def run_streamlit_app():
+    st.set_page_config(page_title="Factory Line | UPH Dashboard", layout="wide")
+    st.title("Factory Line | UPH Dashboard")
+
+    if "sim_engine" not in st.session_state:
+        st.session_state.sim_engine = FactorySim(
+            num_machines=25, slots_per_machine=8, raw_stock=5, failure_rate=0.0
+        )
+        st.session_state.is_running = True
+
+    control_columns = st.columns([2, 1, 1, 1])
+    steps_per_update = control_columns[0].slider(
+        "模擬速度（每次更新秒數）", min_value=5, max_value=1000, value=60, step=5
+    )
+    if control_columns[1].button(
+        "暫停" if st.session_state.is_running else "繼續", use_container_width=True
+    ):
+        st.session_state.is_running = not st.session_state.is_running
+    if control_columns[2].button("重設模擬", use_container_width=True):
+        st.session_state.sim_engine = FactorySim(
+            num_machines=25, slots_per_machine=8, raw_stock=5, failure_rate=0.0
+        )
+        st.session_state.is_running = True
+    control_columns[3].caption("約每 0.2 秒更新一次")
+
+    @st.fragment(run_every=0.2 if st.session_state.is_running else None)
+    def simulation_view():
+        sim = st.session_state.sim_engine
+        if st.session_state.is_running:
+            for _ in range(steps_per_update):
+                sim.step()
+        render_dashboard(sim)
+
+    simulation_view()
+
+
 if __name__ == "__main__":
-
-    sim_engine = FactorySim(num_machines=25, slots_per_machine=8, raw_stock=5, failure_rate=0.0)
-
-    root = tk.Tk()
-
-    app = AppGUI(root, sim_engine)
-
-    root.mainloop()
+    run_streamlit_app()
