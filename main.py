@@ -23,6 +23,7 @@ CONVEYOR_TIME = 15
 RAW_TRANSPORT_TIME = 50    
 
 RAW_GEN_INTERVAL = 90     # 每 90 秒生成 1 個 Raw
+RAW_STOCK_CAPACITY = 5
 
 
 
@@ -108,7 +109,7 @@ class FactorySim:
 
         self.machines = [Machine(f"M{i+1}", slots_per_machine) for i in range(num_machines)]
 
-        self.raw_stock = raw_stock
+        self.raw_stock = min(raw_stock, RAW_STOCK_CAPACITY)
 
         self.good_sink = 0
 
@@ -462,7 +463,7 @@ class FactorySim:
 
         self.raw_in_transit = remaining_transit
 
-        self.raw_stock += arrived
+        self.raw_stock = min(self.raw_stock + arrived, RAW_STOCK_CAPACITY)
 
 
 
